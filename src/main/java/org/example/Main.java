@@ -8,21 +8,26 @@ import java.net.URL;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 public class Main {
+
+    public static final String URL_API = "https://api.github.com/users/%s/events";
+
     public static void main(String[] args) {
-        if (args.length != 1) {
-            System.out.println("Uso: java GitHubEventsAnalyzer <username>");
-            return;
-        }
-
-        String username = args[0];
-        String apiUrl = "https://api.github.com/users/" + username + "/events";
-
         try {
+            if (args.length != 1) {
+                throw new Exception("Uso: java GitHubEventsAnalyzer <username>");
+            }
+
+            String username = args[0];
+            String apiUrl = URL_API.formatted(username);
+
             String response = makeHttpRequest(apiUrl);
-            parseAndDisplayEvents(response);
-        } catch (IOException e) {
-            System.out.println("Error al obtener los eventos: " + e.getMessage());
+            String parsedJson = parseAndDisplayEvents(response);
+
+            System.out.println(parsedJson);
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
         }
     }
 
@@ -36,6 +41,13 @@ public class Main {
             throw new IOException("Error HTTP: " + connection.getResponseCode());
         }
 
+        String response = readBuffered(connection);
+        connection.disconnect();
+
+        return response;
+    }
+
+    private static String readBuffered(HttpURLConnection connection) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
         StringBuilder response = new StringBuilder();
         String line;
@@ -45,12 +57,11 @@ public class Main {
         }
 
         reader.close();
-        connection.disconnect();
-
         return response.toString();
     }
 
-    private static void parseAndDisplayEvents(String jsonResponse) {
+    private static String parseAndDisplayEvents(String jsonResponse) {
+        StringBuilder sb = new StringBuilder();
         JSONArray events = new JSONArray(jsonResponse);
 
         for (int i = 0; i < events.length(); i++) {
@@ -60,16 +71,17 @@ public class Main {
             JSONObject repo = event.getJSONObject("repo");
             String repoName = repo.getString("name");
 
-            System.out.println("Evento #" + (i+1));
-            System.out.println("Tipo: " + type);
-            System.out.println("Repositorio: " + repoName);
+            sb.append("Evento #").append(i + 1).append("\n");
+            sb.append("Tipo: ").append(type).append("\n");
+            sb.append("Repositorio: ").append(repoName).append("\n");
 
             if (event.has("payload") && event.getJSONObject("payload").has("commits")) {
                 JSONArray commits = event.getJSONObject("payload").getJSONArray("commits");
-                System.out.println("Número de commits: " + commits.length());
+                sb.append("Número de commits: ").append(commits.length()).append("\n");
             }
+            sb.append("----------------------------");
 
-            System.out.println("----------------------------");
         }
+        return sb.toString();
     }
 }
